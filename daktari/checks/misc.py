@@ -1,4 +1,7 @@
-from typing import Optional
+import logging
+from tabulate import tabulate
+from typing import Dict, Optional
+from python_hosts import Hosts
 
 from daktari.check import Check, CheckResult
 from daktari.os import OS, check_env_var_exists, get_env_var_value
@@ -145,3 +148,31 @@ class ShfmtInstalled(Check):
 
     def check(self) -> CheckResult:
         return self.verify_install("shfmt")
+
+
+class HostAliasesConfigured(Check):
+    name = "hostAliases.configured"
+
+    def __init__(self, required_aliases: Dict[str, str]):
+        self.required_aliases = required_aliases
+        hosts_path = Hosts.determine_hosts_path()
+        entries_text = tabulate([(addr, name) for (name, addr) in self.required_aliases.items()], tablefmt="plain")
+        self.suggestions = {
+            OS.GENERIC: f"""Add the following entries to {hosts_path}:
+
+            {entries_text}"""
+        }
+
+    def check(self) -> CheckResult:
+        hosts = Hosts()
+        entries = [e for e in hosts.entries if e.entry_type in ("ipv4", "ipv6")]
+        entries_dict = {}
+        for entry in entries:
+            for name in entry.names:
+                entries_dict[name] = entry.address
+        logging.debug(f"Hosts file entries: {entries_dict}")
+        for (name, address) in self.required_aliases.items():
+            if entries_dict.get(name) != address:
+                return self.failed(f"{hosts.hosts_path} alias {name} -> {address} not present")
+
+        return self.passed("{hosts.hosts_path} aliases present")
