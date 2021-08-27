@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+from semver import VersionInfo
 from typing import Optional
 
 from daktari.check import Check, CheckResult
@@ -9,8 +10,9 @@ from daktari.os import OS
 
 
 class KubectlInstalled(Check):
-    def __init__(self, minimum_version: Optional[float] = None):
-        self.minimum_version = minimum_version
+    def __init__(self, required_version: Optional[str] = None, recommended_version: Optional[str] = None):
+        self.required_version = required_version
+        self.recommended_version = recommended_version
         self.name = "kubectl.installed"
         self.suggestions = {
             OS.OS_X: "<cmd>brew install kubectl</cmd>",
@@ -20,20 +22,26 @@ class KubectlInstalled(Check):
 
     def check(self) -> CheckResult:
         installed_version = get_kubectl_version()
-        return self.validate_minimum_version("Kubectl", installed_version, self.minimum_version)
+        return self.validate_semver_expression(
+            "Kubectl", installed_version, self.required_version, self.recommended_version
+        )
 
 
-version_pattern = re.compile("Client Version: v([0-9]+.[0-9]+)")
+version_pattern = re.compile("Client Version: v(.*)")
 
 
-def get_kubectl_version() -> Optional[float]:
+def get_kubectl_version() -> Optional[VersionInfo]:
     raw_version = get_stdout("kubectl version --client=true --short")
     if raw_version:
         match = version_pattern.search(raw_version)
         if match:
             version_string = match.group(1)
-            logging.debug(f"Kubectl version: {version_string}")
-            return float(version_string)
+            try:
+                version = VersionInfo.parse(version_string)
+            except ValueError:
+                return None
+            logging.debug(f"Kubectl version: {version}")
+            return version
     return None
 
 
@@ -52,8 +60,9 @@ class KubectlContextExists(Check):
 class HelmInstalled(Check):
     name = "helm.installed"
 
-    def __init__(self, minimum_version: Optional[float] = None):
-        self.minimum_version = minimum_version
+    def __init__(self, required_version: Optional[str] = None, recommended_version: Optional[str] = None):
+        self.required_version = required_version
+        self.recommended_version = recommended_version
         self.suggestions = {
             OS.OS_X: "<cmd>brew install helm</cmd>",
             OS.UBUNTU: "<cmd>sudo snap install helm --classic</cmd>",
@@ -62,20 +71,26 @@ class HelmInstalled(Check):
 
     def check(self) -> CheckResult:
         installed_version = get_helm_version()
-        return self.validate_minimum_version("Helm", installed_version, self.minimum_version)
+        return self.validate_semver_expression(
+            "Helm", installed_version, self.required_version, self.recommended_version
+        )
 
 
-helm_version_pattern = re.compile("v([0-9]+.[0-9]+)")
+helm_version_pattern = re.compile("v([0-9\\.]+)")
 
 
-def get_helm_version() -> Optional[float]:
+def get_helm_version() -> Optional[VersionInfo]:
     raw_version = get_stdout("helm version --short")
     if raw_version:
         match = helm_version_pattern.search(raw_version)
         if match:
             version_string = match.group(1)
-            logging.debug(f"Helm Version: {version_string}")
-            return float(version_string)
+            try:
+                version = VersionInfo.parse(version_string)
+            except ValueError:
+                return None
+            logging.debug(f"Helm Version: {version}")
+            return version
     return None
 
 

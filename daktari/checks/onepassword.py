@@ -28,7 +28,7 @@ class OnePassInstalled(Check):
         )
 
 
-def get_op_version() -> Optional[float]:
+def get_op_version() -> Optional[VersionInfo]:
     raw_version = get_stdout("op --version")
     if raw_version:
         try:
